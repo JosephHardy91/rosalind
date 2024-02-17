@@ -1,4 +1,6 @@
 import os, re
+from collections import Counter
+
 import numpy as np
 import math
 
@@ -627,16 +629,15 @@ def get_all_possible_strings_from_alphabet(dataset):
         sorted([''.join(permutation) for permutation in get_permutations_with_replacement(alphabet, n, 0)]))
 
 
-
 def longest_increasing_subsequence(sequence):
     sequence = list(map(int, sequence.split()))
     n = len(sequence)
     lis = [1] * n
 
-    for i in range (1, n):
+    for i in range(1, n):
         for j in range(0, i):
             if sequence[i] > sequence[j] and lis[i] < lis[j] + 1:
-                lis[i] = lis[j]+1
+                lis[i] = lis[j] + 1
 
     maximum = max(lis)
 
@@ -648,12 +649,190 @@ def longest_increasing_subsequence(sequence):
 
     return result[::-1]
 
+
 def longest_decreasing_subsequence(sequence):
     return longest_increasing_subsequence(sequence[::-1])[::-1]
-def get_longest_subsequences(sequence,format_as_string=True):
+
+
+def get_longest_subsequences(sequence, format_as_string=True):
     if format_as_string:
-        return ' '.join(map(str,longest_increasing_subsequence(sequence))) + '\n' + ' '.join(map(str,longest_decreasing_subsequence(sequence)))
+        return ' '.join(map(str, longest_increasing_subsequence(sequence))) + '\n' + ' '.join(
+            map(str, longest_decreasing_subsequence(sequence)))
     return longest_increasing_subsequence(sequence), longest_decreasing_subsequence(sequence)
+
+
+"""
+For a collection of strings, a larger string containing every one of the smaller strings as a substring is called a superstring.
+
+By the assumption of parsimony, a shortest possible superstring over a collection of reads serves as a candidate chromosome.
+"""
+
+
+
+def glue_substrings_into_super_string(substrings):
+    """
+    Given: At most 50 DNA strings of approximately equal length, not exceeding 1 kbp, in FASTA format
+    (which represent reads deriving from the same strand of a single linear chromosome).
+
+    The dataset is guaranteed to satisfy the following condition:
+    there exists a unique way to reconstruct the entire chromosome from these reads by gluing together pairs of reads
+    that overlap by more than half their length.
+    Return: A shortest superstring containing all the given strings (thus corresponding to a reconstructed chromosome).
+    """
+    # must find a solution where not only subsequent substrings overlap by more than half their length, but also all substrings must be used
+
+    # scan all strings at once, add the string index, then find the longest increasing neighboring subsequence of string indices
+    # then glue the strings together in the order of the longest increasing neighboring subsequence of string indices
+
+    substrings = substrings.split("\n")[1::2]
+    substrings = tuple(map(tuple, substrings))
+
+    def track_long_coterminous_substrings(strings):
+        # Initialize the data structure
+        substrings = {}
+        # Iterate over each string in the set
+        for string_id, s_array in enumerate(strings):
+            s = ''.join(s_array)
+            n = len(s)
+            min_length = n // 2  # Calculate minimum length for substrings
+
+            # Generate prefix substrings that are at least half the length of the string
+            for end in range(min_length, n + 1):  # Ensure substrings are at least half the length of s
+                substring = s[:end]
+                if substring not in substrings:
+                    substrings[substring] = {}
+                if string_id not in substrings[substring]:
+                    substrings[substring][string_id] = []
+                substrings[substring][string_id].append(0)  # Prefix starts at 0
+
+            # Generate suffix substrings that are at least half the length of the string
+            for start in range(0, n - min_length + 1):  # Ensure substrings are at least half the length of s
+                substring = s[start:]
+                if substring not in substrings:
+                    substrings[substring] = {}
+                if string_id not in substrings[substring]:
+                    substrings[substring][string_id] = []
+                substrings[substring][string_id].append(start)
+
+        # Transform string_id back to the original strings or chosen identifiers
+        substrings_with_identifiers = {''.join(k): {''.join(strings[idx]): positions for idx, positions in v.items()}
+                                       for k, v in
+                                       substrings.items()}
+
+        return substrings_with_identifiers
+
+    substring_constructions = track_long_coterminous_substrings(substrings)
+    # for string_id, s in enumerate(substrings):
+    #     n = s.shape[0]
+    #
+    #     # Steps 3 & 4: Generate all possible substrings of length 2 or more
+    #     for start in range(n):
+    #         for end in range(start + int(n/2), n + 1):
+    #             substring = ''.join(s[start:end].tolist())
+    #
+    #             # Step 5: Update the data structure
+    #             if substring not in substring_constructions:
+    #                 substring_constructions[substring] = {}
+    #             if string_id not in substring_constructions[substring]:
+    #                 substring_constructions[substring][string_id] = []
+    #             substring_constructions[substring][string_id].append(start)
+    # substrings_to_remove = []
+    # for substring in substring_constructions:
+    #     #prune substrings without at least two shared substrings
+    #     if len(substring_constructions[substring]) < 2:
+    #         substrings_to_remove.append(substring)
+    #
+    # for substring in substrings_to_remove:
+    #     del substring_constructions[substring]
+
+    #print(substring_constructions)
+    #construct dictionary of pairs of substrings and the substring candidates (flip substring_constructions)
+    # substring_candidates = {}
+    # for substring in substring_constructions:
+    #     for string_id in substring_constructions[substring]:
+    #         if string_id not in substring_candidates:
+    #             substring_candidates[string_id] = {}
+    #         if substring not in substring_candidates[string_id]:
+    #             substring_candidates[string_id][substring] = []
+    #         substring_candidates[string_id][substring].append(string_id)#substring_constructions[substring][string_id]
+    substring_candidates = {}
+    for substring in substring_constructions:
+        if len(substring_constructions[substring]) > 1:
+            major_strings = list(substring_constructions[substring].keys())
+            for i in range(len(major_strings)):
+                if major_strings[i] not in substring_candidates:
+                    substring_candidates[major_strings[i]] = []
+                substring_candidates[major_strings[i]].extend([major_strings[j] for j in range(len(major_strings)) if j != i])
+
+    print(substring_candidates)
+    print(Counter([len(v) for k,v in substring_candidates.items()]))
+    #pair substrings that only have one candidate
+    # new_substring_candidates = substring_candidates.copy()
+    # paired_substrings = {}
+    # for string_id in substring_candidates:
+    #     if len(substring_candidates[string_id]) == 1:
+    #         substring = substring_candidates[string_id][0]
+    #         paired_substrings[string_id] = substring
+    #         del new_substring_candidates[string_id]
+    #         # for string_id2 in substring_candidates:
+    #         #     if string_id2 != string_id:
+    #         #         if string_id in substring_candidates[string_id2]:
+    #         #             del new_substring_candidates[string_id2]
+    # #print(new_substring_candidates)
+    # print(paired_substrings)
+
+    # Function to find the maximum overlap between two strings
+    def find_overlap(s1, s2):
+        max_overlap = 0
+        # Check overlap from s1 to s2
+        for i in range(1, min(len(s1), len(s2))):
+            if s1[-i:] == s2[:i]:
+                max_overlap = i
+        return max_overlap
+
+    # Function to stitch strings together based on their overlaps
+    def stitch_strings(strings):
+        # Convert the mapping to a list of tuples (string, next_string) for easier manipulation
+        edges = [(s, ns) for s, next_strings in strings.items() for ns in next_strings]
+
+        # Initially, no string is stitched
+        stitched = {}
+        for s in strings:
+            stitched[s] = False
+
+        # Start stitching from the first string (arbitrary choice)
+        current_string = list(strings.keys())[0]
+        stitched[current_string] = True
+        superstring = current_string
+
+        # Keep track of possible next steps to handle branching
+        next_steps = []
+
+        while len(next_steps) > 0 or any(
+                next_strings for current_string, next_strings in strings.items() if stitched[current_string] == False):
+            if not next_steps:  # Find the next step if next_steps is empty
+                next_steps.extend(strings[current_string])
+                if not next_steps:
+                    break
+
+            next_string = next_steps.pop(0)
+            if stitched[next_string]:
+                continue
+
+            overlap = find_overlap(current_string, next_string)
+            # Append the non-overlapping part of the next string
+            superstring += next_string[overlap:]
+            stitched[next_string] = True
+            current_string = next_string
+
+            # Update next steps based on the new current_string
+            next_steps = strings[current_string]
+
+        return superstring
+
+    # Stitch the strings
+    stitched_superstring = stitch_strings(substring_candidates)
+    return stitched_superstring
 
 
 if __name__ == "__main__":
@@ -670,7 +849,7 @@ if __name__ == "__main__":
                          17: get_num_possible_RNA_from_protein, 18: get_proteins_from_ORF, 19: get_num_and_permutations,
                          20: get_protein_string_mass, 21: find_reverse_palindromes,
                          22: splice_and_transcribe_pre_mRNA_made_from_DNA, 23: get_all_possible_strings_from_alphabet,
-                         24: get_longest_subsequences}
+                         24: get_longest_subsequences, 25: glue_substrings_into_super_string}
 
     sample_datasets = {1: 'AGCTTTTCATTCTGACTGCAACGGGCAATATGTCTCTGTGTGGATTAAAAAAAGAGTGTCTGATAGCAGC',
                        2: 'GATGGAACTTGACTACGTAAATT',
@@ -727,7 +906,14 @@ ATCGGTCGAA
 >Rosalind_15
 ATCGGTCGAGCGTGT""", 23: """A C G T
 2""", 24: """5
-5 1 4 2 3"""}
+5 1 4 2 3""", 25: """>Rosalind_56
+ATTAGACCTG
+>Rosalind_57
+CCTGCCGGAA
+>Rosalind_58
+AGACCTGCCG
+>Rosalind_59
+GCCGGAATAC"""}
     sample_answers = {1: "20 12 17 21", 2: 'GAUGGAACUUGACUACGUAAAUU', 3: 'ACCGGGTTTT', 4: 19, 5: """Rosalind_0808
 60.91954""", 6: 7, 7: 0.78333,
                       8: 'MAMAPRTEINSTRING', 9: '2 4 10', 10: """ATGCAACT
@@ -775,7 +961,7 @@ TA
 TC
 TG
 TT""", 24: """1 2 3
-5 4 2"""}
+5 4 2""", 25: "ATTAGACCTGCCGGAATAC"}
 
     sample_guess = problem_functions[PROBLEM_NUMBER](sample_datasets[PROBLEM_NUMBER])
     # print(sample_answers[PROBLEM_NUMBER])
