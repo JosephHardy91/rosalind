@@ -668,7 +668,7 @@ By the assumption of parsimony, a shortest possible superstring over a collectio
 """
 
 
-
+#passes test cases for 25 but not datasets
 def glue_substrings_into_super_string(strings):
     """
     Given: At most 50 DNA strings of approximately equal length, not exceeding 1 kbp, in FASTA format
@@ -684,38 +684,60 @@ def glue_substrings_into_super_string(strings):
     # scan all strings at once, add the string index, then find the longest increasing neighboring subsequence of string indices
     # then glue the strings together in the order of the longest increasing neighboring subsequence of string indices
 
-    strings = strings.split("\n")[1::2]
+    strings = strings.split(">")
+    strings = [string.strip().split("\n", 1)[1].replace("\n", "") for string in strings if string != '']
+    strings = [string.strip() for string in strings]
+
+    def find_overlap(s1,s2):
+        for i in range(len(s1)):
+            if s2.startswith(s1[i:]):
+                return len(s1[i:])
+        return 0
 
     #make a graph for the strings with edge value
     # as the length of the coterminous (prefix of one is suffix of other and vice-versa) overlap of the strings' substrings
     graph = {}
-    print("Creating graph...")
     for i in range(len(strings)):
-        string_i_len_half = len(strings[i])//2
-        for j in range(len(strings)):
-            string_j_len_half = len(strings[j]) // 2
-            if i != j:
-                for k in range(max(string_i_len_half,string_j_len_half),len(strings[i])):
-                    if strings[j].startswith(strings[i][-k:]):
-                        v = k
-                        if v<max(string_i_len_half,string_j_len_half):continue
-                        if i not in graph: graph[i] = {}
-                        if j in graph[i]:
-                            graph[i][j] = max(graph[i][j], v)
-                        else:
-                            graph[i][j] = v
-                        break
-                for k in range(max(string_i_len_half,string_j_len_half),len(strings[j])):
-                    if strings[i].startswith(strings[j][-k:]):
-                        v = k
-                        if v < max(string_i_len_half,string_j_len_half): continue
-                        if j not in graph: graph[j] = {}
-                        if i in graph[j]:
-                            graph[j][i] = max(graph[j][i],v)
-                        else:
-                            graph[j][i] = v
-                        break
-    print(graph)
+        string_i_len = len(strings[i])
+        for j in range(i+1,len(strings)):
+            string_j_len = len(strings[j])
+            overlap_i_j = find_overlap(strings[i],strings[j])
+            overlap_j_i = find_overlap(strings[j],strings[i])
+
+            if overlap_i_j >=  string_i_len//2 and overlap_i_j >= string_j_len//2:
+                if i not in graph: graph[i] = {}
+                graph[i][j] = overlap_i_j
+            if overlap_j_i >=  string_i_len//2 and overlap_j_i >= string_j_len//2:
+                if j not in graph: graph[j] = {}
+                graph[j][i] = overlap_j_i
+    #print(graph)
+    #print("Creating graph...")
+    # for i in range(len(strings)):
+    #     string_i_len_half = len(strings[i])//2
+    #     for j in range(len(strings)):
+    #         string_j_len_half = len(strings[j]) // 2
+    #         if i != j:
+    #             for k in range(max(string_i_len_half,string_j_len_half),len(strings[i])):
+    #                 if strings[j].startswith(strings[i][-k:]):
+    #                     v = k
+    #                     if v<string_i_len_half or v<string_j_len_half:continue
+    #                     if i not in graph: graph[i] = {}
+    #                     if j in graph[i]:
+    #                         graph[i][j] = max(graph[i][j], v)
+    #                     else:
+    #                         graph[i][j] = v
+    #                     break
+    #             for k in range(max(string_i_len_half,string_j_len_half),len(strings[j])):
+    #                 if strings[i].startswith(strings[j][-k:]):
+    #                     v = k
+    #                     if v<string_i_len_half or v<string_j_len_half: continue
+    #                     if j not in graph: graph[j] = {}
+    #                     if i in graph[j]:
+    #                         graph[j][i] = max(graph[j][i],v)
+    #                     else:
+    #                         graph[j][i] = v
+    #                     break
+    # print(graph)
     new_graph = graph.copy()
     for node in graph:
         for next_node in graph[node]:
@@ -726,9 +748,9 @@ def glue_substrings_into_super_string(strings):
                 #         new_graph[next_node][node] = graph[node][next_node]
     graph = new_graph
     #print(strings)
-    print(graph)
-    print(len(graph),len(strings))
-    print("Finding path in graph...")
+    # print(graph)
+    # print(len(graph),len(strings))
+    #print("Finding path in graph...")
 
     #since we are guaranteed to have at least one end node, explore back from end nodes to find the longest path
     end_nodes = [node for node in graph if len(graph[node]) == 0]
@@ -740,37 +762,6 @@ def glue_substrings_into_super_string(strings):
                 end_node_lookups[next_node] = {}
             end_node_lookups[next_node][node] = non_end_nodes[node][next_node]
 
-    print(end_nodes)
-    print(end_node_lookups)
-
-
-    #follow end nodes backwards based on the lookup, avoiding recursion via the use of hashes to key the current path for the path value and nodes in the path (nodes in the path is a list)
-    def follow_path_with_hashes(node, path, path_value, end_node_paths, end_node_paths_values,new_path_hash=None):
-        if node not in end_node_lookups:
-            return end_node_paths,end_node_paths_values
-        if node in path:
-            return end_node_paths,end_node_paths_values
-        if new_path_hash is None:
-            new_path_hash = hash(str(path))
-        if new_path_hash in end_node_paths_values:
-            if path_value > end_node_paths_values[new_path_hash]:
-                end_node_paths_values[new_path_hash] = path_value
-                end_node_paths[new_path_hash] = path
-            return end_node_paths,end_node_paths_values
-        else:
-            end_node_paths_values[new_path_hash] = path_value
-            end_node_paths[new_path_hash] = path
-        for next_node,node_value in end_node_lookups[node].items():
-            new_path = path + [next_node]
-            new_overlap = node_value + path_value
-            new_path_hash = hash(str(new_path))
-            end_node_paths,end_node_paths_values = follow_path_with_hashes(next_node, new_path, new_overlap, end_node_paths, end_node_paths_values,new_path_hash)
-        return end_node_paths,end_node_paths_values
-
-
-
-    # end_node_paths = {}
-    # end_node_paths_values = {}
     def collect_paths_and_sums(end_nodes, graph):
         # Initialize a dictionary to hold unique paths and their sums
         paths_and_sums = {}
@@ -799,90 +790,20 @@ def glue_substrings_into_super_string(strings):
         return paths_and_sums
 
     path_sums = collect_paths_and_sums(end_nodes,end_node_lookups)
-    #print(path_sums)
     max_path = max(path_sums,key=path_sums.get)
     max_path_value = path_sums[max_path]
-    print(max_path,max_path_value)
+    #print(max_path,max_path_value)
 
+    #print("Stitching strings together...")
+    #stitch the strings together based on the node to node values
+    super_string = ''
+    for i,node in enumerate(max_path):
+        if i!=len(max_path)-1:
+            super_string += strings[node][:len(strings[node])-graph[node][max_path[i+1]]]
+        else:
+            super_string += strings[node]
 
-    # for end_node in end_nodes:
-    #     #recursively find the all paths and path value chains from the end node
-    #
-    #     end_node_paths[end_node],end_node_paths_values[end_node] = follow_path_with_hashes(end_node, [end_node], 0, end_node_paths, end_node_paths_values)
-    #find highest path value
-    # longest_path_value = 0
-    # longest_path = []
-    # for end_node in end_node_paths:
-    #     if traverse(end_node_paths_values[end_node]) > longest_path_value:
-    #         longest_path_value = end_node_paths_values[end_node]
-    #         longest_path = end_node_paths[end_node]
-    # print(longest_path_value,longest_path)
-
-    # find the longest path in the graph by adding the edge values for each unique path
-    # then glue the strings together in the order of the longest path
-    # this is a greedy algorithm, but it works for the problem
-
-    # def follow_path(node, path, longest_path):
-    #
-    #     for next_node, overlap in graph[node].items():
-    #         if next_node not in path:
-    #             new_path = path + [next_node]
-    #             new_overlap = overlap + path[-1]
-    #             if not longest_path:
-    #                 longest_path = follow_path(next_node, new_path, longest_path)
-    #             else:
-    #                 longest_path = follow_path(next_node, new_path, longest_path) if new_overlap > longest_path[1] else longest_path
-    #     return longest_path
-    # def get_path_value(path,graph):
-    #     path_value = 0.
-    #     while path:
-    #         next_node = path.pop(0)
-    #         if path:
-    #             path_value += graph[next_node][path[0]]
-    #     return path_value
-    # print(graph)
-    # longest_path = []
-    # for node in graph:
-    #     longest_node_path = []
-    #     longest_node_path_value = 0.
-    #     for next_node, overlap in graph[node].items():
-    #         print(graph[node])
-    #         longest_node_path = follow_path(next_node, [node, next_node], longest_node_path)
-    #         print(node,next_node,longest_node_path)
-    #         if not longest_node_path:
-    #             longest_node_path = [node, next_node]
-    #             longest_node_path_value = overlap
-    #         elif get_path_value(longest_node_path,graph) > longest_node_path_value:
-    #             longest_node_path_value = longest_node_path[1]
-    #             longest_node_path = longest_node_path
-    #     if not longest_path:
-    #         print("Set longest path to ",longest_node_path)
-    #         longest_path = longest_node_path
-    #     #otherwise merge the longest path with the longest node path at the place where they overlap
-    #     else:
-    #         #they could overlap at the start or end of the path, or somewhere in the middle
-    #         if longest_path[0] == longest_node_path[0]:
-    #             print("Set longest path to ", longest_node_path)
-    #             longest_path = longest_node_path
-    #         elif longest_path[-1] == longest_node_path[-1]:
-    #             longest_path = longest_path
-    #         else:
-    #             for i in range(len(longest_path)):
-    #                 if longest_path[i] == longest_node_path[0]:
-    #
-    #                     longest_path = longest_path[:i] + longest_node_path
-    #                     print("Set longest path to ", longest_path)
-    #                     break
-    # print(longest_path)
-    print("Stitching strings together...")
-    # glue the strings together in the order of the longest path
-    #stitched_superstring = substrings[longest_path[0]]
-
-
-    # Stitch the strings
-    #stitched_superstring = construct_superstring(substrings)
-    #print(stitched_superstring)
-    #return stitched_superstring
+    return super_string
 
 
 if __name__ == "__main__":
@@ -1014,12 +935,24 @@ TT""", 24: """1 2 3
 5 4 2""", 25: "ATTAGACCTGCCGGAATAC"}
 
     sample_guess = problem_functions[PROBLEM_NUMBER](sample_datasets[PROBLEM_NUMBER])
-    # print(sample_answers[PROBLEM_NUMBER])
-    # print(sample_guess)
-    # assert sample_guess == \
-    #        sample_answers[PROBLEM_NUMBER], \
-    #     "Incorrect answer to sample dataset: " + str(sample_guess) + '\n--------\n' + str(
-    #         sample_answers[PROBLEM_NUMBER])
+    print('Correct Answer:',sample_answers[PROBLEM_NUMBER])
+    print('Guessed Answer:',sample_guess)
+    assert sample_guess == \
+           sample_answers[PROBLEM_NUMBER], \
+        "Incorrect answer to sample dataset: " + str(sample_guess) + '\n--------\n' + str(
+            sample_answers[PROBLEM_NUMBER])
+
+    # my_sample_dataset = """a
+    # AAATTTGC
+    # a
+    # ATTTGCTT
+    # """
+    #
+    # my_sample_answer = 'AAATTTGCTT'
+    #
+    # my_sample_guess = problem_functions[25](my_sample_dataset)
+    # print('Correct Answer:',my_sample_answer)
+    # print('Guessed Answer:',my_sample_guess)
 
     # ----------------------------------------------------------------------------------------------
     dataset_path = get_dataset_path()
