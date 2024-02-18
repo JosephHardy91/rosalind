@@ -1,4 +1,5 @@
 import os, re
+import time
 from collections import Counter
 
 import numpy as np
@@ -668,7 +669,6 @@ By the assumption of parsimony, a shortest possible superstring over a collectio
 """
 
 
-#passes test cases for 25 but not datasets
 def glue_substrings_into_super_string(strings):
     """
     Given: At most 50 DNA strings of approximately equal length, not exceeding 1 kbp, in FASTA format
@@ -680,81 +680,46 @@ def glue_substrings_into_super_string(strings):
     Return: A shortest superstring containing all the given strings (thus corresponding to a reconstructed chromosome).
     """
     # must find a solution where not only subsequent substrings overlap by more than half their length, but also all substrings must be used
-
-    # scan all strings at once, add the string index, then find the longest increasing neighboring subsequence of string indices
     # then glue the strings together in the order of the longest increasing neighboring subsequence of string indices
 
     strings = strings.split(">")
     strings = [string.strip().split("\n", 1)[1].replace("\n", "") for string in strings if string != '']
     strings = [string.strip() for string in strings]
 
-    def find_overlap(s1,s2):
+    t1 = time.time()
+
+    def find_overlap(s1, s2):
         for i in range(len(s1)):
             if s2.startswith(s1[i:]):
                 return len(s1[i:])
         return 0
 
-    #make a graph for the strings with edge value
+    # make a graph for the strings with edge value
     # as the length of the coterminous (prefix of one is suffix of other and vice-versa) overlap of the strings' substrings
     graph = {}
     for i in range(len(strings)):
         string_i_len = len(strings[i])
-        for j in range(i+1,len(strings)):
+        for j in range(i + 1, len(strings)):
             string_j_len = len(strings[j])
-            overlap_i_j = find_overlap(strings[i],strings[j])
-            overlap_j_i = find_overlap(strings[j],strings[i])
+            overlap_i_j = find_overlap(strings[i], strings[j])
+            overlap_j_i = find_overlap(strings[j], strings[i])
 
-            if overlap_i_j >=  string_i_len//2 and overlap_i_j >= string_j_len//2:
+            if overlap_i_j >= string_i_len // 2 and overlap_i_j >= string_j_len // 2:
                 if i not in graph: graph[i] = {}
                 graph[i][j] = overlap_i_j
-            if overlap_j_i >=  string_i_len//2 and overlap_j_i >= string_j_len//2:
+            if overlap_j_i >= string_i_len // 2 and overlap_j_i >= string_j_len // 2:
                 if j not in graph: graph[j] = {}
                 graph[j][i] = overlap_j_i
-    #print(graph)
-    #print("Creating graph...")
-    # for i in range(len(strings)):
-    #     string_i_len_half = len(strings[i])//2
-    #     for j in range(len(strings)):
-    #         string_j_len_half = len(strings[j]) // 2
-    #         if i != j:
-    #             for k in range(max(string_i_len_half,string_j_len_half),len(strings[i])):
-    #                 if strings[j].startswith(strings[i][-k:]):
-    #                     v = k
-    #                     if v<string_i_len_half or v<string_j_len_half:continue
-    #                     if i not in graph: graph[i] = {}
-    #                     if j in graph[i]:
-    #                         graph[i][j] = max(graph[i][j], v)
-    #                     else:
-    #                         graph[i][j] = v
-    #                     break
-    #             for k in range(max(string_i_len_half,string_j_len_half),len(strings[j])):
-    #                 if strings[i].startswith(strings[j][-k:]):
-    #                     v = k
-    #                     if v<string_i_len_half or v<string_j_len_half: continue
-    #                     if j not in graph: graph[j] = {}
-    #                     if i in graph[j]:
-    #                         graph[j][i] = max(graph[j][i],v)
-    #                     else:
-    #                         graph[j][i] = v
-    #                     break
-    # print(graph)
     new_graph = graph.copy()
     for node in graph:
         for next_node in graph[node]:
             if next_node not in new_graph:
                 new_graph[next_node] = {}
-                # for node in graph:
-                #     if next_node in graph[node]:
-                #         new_graph[next_node][node] = graph[node][next_node]
     graph = new_graph
-    #print(strings)
-    # print(graph)
-    # print(len(graph),len(strings))
-    #print("Finding path in graph...")
 
-    #since we are guaranteed to have at least one end node, explore back from end nodes to find the longest path
+    # since we are guaranteed to have at least one end node, explore back from end nodes to find the longest path
     end_nodes = [node for node in graph if len(graph[node]) == 0]
-    non_end_nodes = {node:graph[node] for node in graph if len(graph[node]) > 0}
+    non_end_nodes = {node: graph[node] for node in graph if len(graph[node]) > 0}
     end_node_lookups = {}
     for node in non_end_nodes:
         for next_node in non_end_nodes[node]:
@@ -789,20 +754,17 @@ def glue_substrings_into_super_string(strings):
 
         return paths_and_sums
 
-    path_sums = collect_paths_and_sums(end_nodes,end_node_lookups)
-    max_path = max(path_sums,key=path_sums.get)
-    max_path_value = path_sums[max_path]
-    #print(max_path,max_path_value)
+    path_sums = collect_paths_and_sums(end_nodes, end_node_lookups)
+    max_path = max(path_sums, key=path_sums.get)
 
-    #print("Stitching strings together...")
-    #stitch the strings together based on the node to node values
+    # stitch the strings together based on the node to node values
     super_string = ''
-    for i,node in enumerate(max_path):
-        if i!=len(max_path)-1:
-            super_string += strings[node][:len(strings[node])-graph[node][max_path[i+1]]]
+    for i, node in enumerate(max_path):
+        if i != len(max_path) - 1:
+            super_string += strings[node][:len(strings[node]) - graph[node][max_path[i + 1]]]
         else:
             super_string += strings[node]
-
+    print(time.time() - t1)
     return super_string
 
 
@@ -935,8 +897,8 @@ TT""", 24: """1 2 3
 5 4 2""", 25: "ATTAGACCTGCCGGAATAC"}
 
     sample_guess = problem_functions[PROBLEM_NUMBER](sample_datasets[PROBLEM_NUMBER])
-    print('Correct Answer:',sample_answers[PROBLEM_NUMBER])
-    print('Guessed Answer:',sample_guess)
+    print('Correct Answer:', sample_answers[PROBLEM_NUMBER])
+    print('Guessed Answer:', sample_guess)
     assert sample_guess == \
            sample_answers[PROBLEM_NUMBER], \
         "Incorrect answer to sample dataset: " + str(sample_guess) + '\n--------\n' + str(
